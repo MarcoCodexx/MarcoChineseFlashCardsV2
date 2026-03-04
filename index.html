@@ -1,6 +1,3 @@
-import re
-
-# Full consolidated code for Marco's Chinese Flash Cards
 html_content = r'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -648,20 +645,3 @@ updateCard();
 </script>
 </body>
 </html>'''
-
-# Write the consolidated content to the HTML file
-with open('chinese_flashcards.html', 'w', encoding='utf-8') as f:
-    f.write(html_content)
-
-# Calculate phrase count and print status
-phrase_count = len(re.findall(r'chinese:"', html_content))
-print(f"Total phrase count in consolidated file: {phrase_count}")
-print("File 'chinese_flashcards.html' has been updated with Travel, Business, and Hobbies batches.")
-from IPython.display import HTML
-
-# Open and read the consolidated HTML file
-with open('chinese_flashcards.html', 'r', encoding='utf-8') as f:
-    final_html = f.read()
-
-# Display the interactive application
-HTML(final_html)
