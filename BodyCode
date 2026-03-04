@@ -1,0 +1,659 @@
+import re
+
+# Full consolidated code for Marco's Chinese Flash Cards
+html_content = r'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🀄 Marco's Chinese Flash Cards</title>
+<style>
+  :root {
+    --red: #c0392b; --gold: #f39c12; --bg: #1a1a2e; --surface: #16213e;
+    --card-front: #0f3460; --card-back: #533483;
+    --text: #eaeaea; --muted: #a0a0b0; --green: #27ae60; --orange: #e67e22;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg);
+    color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+  header { width: 100%; background: linear-gradient(135deg, var(--red), #922b21);
+    padding: 18px 24px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+  header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; }
+  header span { font-size: 1.8rem; }
+
+  .controls { width: 100%; max-width: 900px; padding: 18px 16px 8px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+
+  select, button { padding: 8px 16px; border-radius: 8px; border: none;
+    font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
+  select { background: var(--surface); color: var(--text); border: 1px solid #333;
+    min-width: 180px; }
+  select:focus { outline: 2px solid var(--gold); }
+
+  .btn { background: var(--surface); color: var(--text); border: 1px solid #444; }
+  .btn:hover { background: #2a2a4a; border-color: var(--gold); }
+  .btn-red { background: var(--red); color: #fff; border: none; }
+  .btn-red:hover { background: #a93226; }
+  .btn-gold { background: var(--gold); color: #1a1a1a; border: none; font-weight: 600; }
+  .btn-gold:hover { background: #d68910; }
+  .btn-green { background: var(--green); color: #fff; border: none; }
+  .btn-green:hover { background: #1e8449; }
+
+  .progress-bar-wrap { width: 100%; max-width: 900px; padding: 0 16px; }
+  .progress-bar { height: 8px; background: #2a2a4a; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--red));
+    border-radius: 4px; transition: width 0.4s ease; }
+  .progress-text { font-size: 0.8rem; color: var(--muted); text-align: center; }
+
+  .flashcard-area { flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 20px 16px; width: 100%; }
+
+  .scene { width: 100%; max-width: 620px; height: 340px; perspective: 1200px; cursor: pointer; }
+  .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1); border-radius: 20px; }
+  .card.flipped { transform: rotateY(180deg); }
+
+  .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+    border-radius: 20px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 30px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+
+  .card-front { background: linear-gradient(135deg, var(--card-front), #1a4a8a);
+    border: 2px solid rgba(255,255,255,0.1); }
+  .card-back { background: linear-gradient(135deg, var(--card-back), #7d3c98);
+    transform: rotateY(180deg); border: 2px solid rgba(255,255,255,0.1); }
+
+  .card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px;
+    color: rgba(255,255,255,0.5); margin-bottom: 12px; }
+  .card-chinese { font-size: 3.5rem; font-weight: 700; color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3); line-height: 1.2; margin-bottom: 10px; }
+  .card-pinyin { font-size: 1.2rem; color: var(--gold); letter-spacing: 1px; margin-bottom: 6px; }
+  .card-english { font-size: 1.6rem; font-weight: 600; color: #fff;
+    margin-bottom: 8px; max-width: 480px; line-height: 1.3; }
+  .card-example { font-size: 0.9rem; color: rgba(255,255,255,0.65); font-style: italic; max-width: 460px; }
+  .card-category { display: inline-block; background: rgba(255,255,255,0.12);
+    border-radius: 20px; padding: 3px 12px; font-size: 0.75rem; color: rgba(255,255,255,0.7);
+    margin-top: 12px; }
+  .card-hint { font-size: 0.8rem; color: rgba(255,255,255,0.35); margin-top: 16px; }
+  .pinyin-hidden .card-pinyin { filter: blur(5px); transition: filter 0.3s; }
+  .pinyin-hidden .card-pinyin:hover { filter: none; }
+
+  .nav-area { display: flex; gap: 12px; align-items: center; padding: 18px 16px;
+    flex-wrap: wrap; justify-content: center; }
+  .card-counter { font-size: 1rem; color: var(--muted); min-width: 110px; text-align: center; }
+
+  .score-area { display: flex; gap: 16px; padding: 0 16px 20px;
+    justify-content: center; flex-wrap: wrap; }
+  .score-badge { display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border-radius: 30px; padding: 8px 18px;
+    font-size: 0.9rem; border: 1px solid #333; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-orange { background: var(--orange); }
+
+  .toggle-pinyin { display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 0.85rem; color: var(--muted); user-select: none; }
+  .toggle-pinyin input { accent-color: var(--gold); width: 16px; height: 16px; cursor: pointer; }
+
+  @media (max-width: 500px) {
+    .card-chinese { font-size: 2.8rem; }
+    .card-english { font-size: 1.3rem; }
+    .scene { height: 300px; }
+    header h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span>🀄</span>
+  <div>
+    <h1>Marco's Chinese Flash Cards</h1>
+    <div style="font-size:0.8rem;color:rgba(255,255,255,0.7)">Top Useful Phrases · For English Learners</div>
+  </div>
+</header>
+
+<div class="controls">
+  <select id="categorySelect" onchange="changeCategory()">
+    <option value="all">📚 All Categories</option>
+    <option value="Greetings">👋 Greetings</option>
+    <option value="Daily Sentences">💬 Daily Sentences</option>
+    <option value="Questions">❓ Questions</option>
+    <option value="Food & Drink">🍜 Food & Drink</option>
+    <option value="Numbers">🔢 Numbers</option>
+    <option value="Time & Dates">📅 Time & Dates</option>
+    <option value="Places">📍 Places</option>
+    <option value="Transport">🚌 Transport</option>
+    <option value="Shopping">🛍️ Shopping</option>
+    <option value="Family">👨‍👩‍👧 Family</option>
+    <option value="Emotions">❤️ Emotions</option>
+    <option value="Colors">🎨 Colors</option>
+    <option value="Occupations">💼 Occupations</option>
+    <option value="Sports">⚽ Sports</option>
+    <option value="Nature">🌿 Nature</option>
+    <option value="Home">🏠 Home</option>
+    <option value="Useful Phrases">✨ Useful Phrases</option>
+    <option value="Travel">✈️ Travel</option>
+    <option value="Business">💼 Business</option>
+    <option value="Hobbies">🎮 Hobbies</option>
+  </select>
+  <button class="btn btn-gold" onclick="shuffleCards()">🔀 Shuffle</button>
+  <button class="btn btn-red" onclick="resetProgress()">↺ Reset</button>
+  <button class="btn" onclick="togglePinyin()" id="pinyinBtn">👁 Hide Pinyin</button>
+  <label class="toggle-pinyin">
+    <input type="checkbox" id="autoFlip" /> Auto-flip cards
+  </label>
+</div>
+
+<div class="progress-bar-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-text" id="progressText">0 of 0 reviewed</div>
+</div>
+
+<div class="flashcard-area">
+  <div class="scene" id="scene" onclick="flipCard()">
+    <div class="card" id="card">
+      <div class="card-face card-front">
+        <div class="card-label">Chinese</div>
+        <div class="card-chinese" id="frontChinese">你好</div>
+        <div class="card-pinyin" id="frontPinyin">nǐ hǎo</div>
+        <div class="card-category" id="frontCategory">Greetings</div>
+        <div class="card-hint">👆 Tap to reveal English</div>
+      </div>
+      <div class="card-face card-back">
+        <div class="card-label">English</div>
+        <div class="card-english" id="backEnglish">Hello</div>
+        <div class="card-example" id="backExample"></div>
+        <div class="card-hint">Rate your answer below ↓</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="nav-area">
+  <button class="btn" onclick="prevCard()">← Prev</button>
+  <div class="card-counter" id="cardCounter">1 / 1</div>
+  <button class="btn" onclick="nextCard()">Next →</button>
+</div>
+
+<div class="score-area">
+  <div class="score-badge"><div class="dot dot-green"></div><span id="knewCount">0</span> I knew it ✓</div>
+  <div class="score-badge"><div class="dot dot-orange"></div><span id="studyCount">0</span> Still learning</div>
+  <div class="score-badge"><div class="dot dot-red"></div><span id="unknownCount">0</span> Didn't know</div>
+  <button class="btn-green btn" onclick="markKnew()">✓ Knew it</button>
+  <button class="btn" onclick="markStudy()" style="background:#e67e22;color:#fff;border:none">~ Still learning</button>
+  <button class="btn btn-red" onclick="markUnknown()">✗ Didn't know</button>
+</div>
+
+<script>
+const ALL_CARDS = [
+  {chinese:"你好",pinyin:"nǐ hǎo",english:"Hello",category:"Greetings"},
+  {chinese:"您好",pinyin:"nín hǎo",english:"Hello (formal/polite)",category:"Greetings"},
+  {chinese:"早上好",pinyin:"zǎo shang hǎo",english:"Good morning",category:"Greetings"},
+  {chinese:"下午好",pinyin:"xià wǔ hǎo",english:"Good afternoon",category:"Greetings"},
+  {chinese:"晚上好",pinyin:"wǎn shang hǎo",english:"Good evening",category:"Greetings"},
+  {chinese:"晚安",pinyin:"wǎn ān",english:"Good night",category:"Greetings"},
+  {chinese:"再见",pinyin:"zài jiàn",english:"Goodbye",category:"Greetings"},
+  {chinese:"拜拜",pinyin:"bāi bāi",english:"Bye bye (casual)",category:"Greetings"},
+  {chinese:"你好吗？",pinyin:"nǐ hǎo ma?",english:"How are you?",category:"Greetings"},
+  {chinese:"我很好",pinyin:"wǒ hěn hǎo",english:"I'm very well",category:"Greetings"},
+  {chinese:"还好",pinyin:"hái hǎo",english:"Pretty good / Not bad",category:"Greetings"},
+  {chinese:"谢谢",pinyin:"xiè xie",english:"Thank you",category:"Greetings"},
+  {chinese:"不客气",pinyin:"bú kè qi",english:"You're welcome",category:"Greetings"},
+  {chinese:"对不起",pinyin:"duì bù qǐ",english:"Sorry / I apologize",category:"Greetings"},
+  {chinese:"没关系",pinyin:"méi guān xi",english:"It's okay / No problem",category:"Greetings"},
+  {chinese:"请",pinyin:"qǐng",english:"Please",category:"Greetings"},
+  {chinese:"欢迎",pinyin:"huān yíng",english:"Welcome",category:"Greetings"},
+  {chinese:"保重",pinyin:"bǎo zhòng",english:"Take care",category:"Greetings"},
+  {chinese:"加油",pinyin:"jiā yóu",english:"Keep going! / You can do it!",category:"Greetings"},
+  {chinese:"好久不见",pinyin:"hǎo jiǔ bù jiàn",english:"Long time no see!",category:"Greetings"},
+  {chinese:"明天见",pinyin:"míng tiān jiàn",english:"See you tomorrow",category:"Greetings"},
+  {chinese:"一会儿见",pinyin:"yí huìr jiàn",english:"See you later",category:"Greetings"},
+  {chinese:"不好意思",pinyin:"bù hǎo yì si",english:"Excuse me / Sorry (polite)",category:"Greetings"},
+  {chinese:"请问",pinyin:"qǐng wèn",english:"May I ask…",category:"Greetings"},
+  {chinese:"幸会",pinyin:"xìng huì",english:"Pleased to meet you",category:"Greetings"},
+  {chinese:"认识你很高兴",pinyin:"rèn shi nǐ hěn gāo xìng",english:"Nice to meet you",category:"Greetings"},
+  {chinese:"我明白了",pinyin:"wǒ míng bái le",english:"I understand / I see",category:"Daily Sentences"},
+  {chinese:"我不明白",pinyin:"wǒ bù míng bái",english:"I don't understand",category:"Daily Sentences"},
+  {chinese:"我也是",pinyin:"wǒ yě shì",english:"Me too",category:"Daily Sentences"},
+  {chinese:"没问题",pinyin:"méi wèn tí",english:"No problem!",category:"Daily Sentences"},
+  {chinese:"没事",pinyin:"méi shì",english:"It's nothing / Never mind",category:"Daily Sentences"},
+  {chinese:"当然",pinyin:"dāng rán",english:"Of course!",category:"Daily Sentences"},
+  {chinese:"好的",pinyin:"hǎo de",english:"Okay / Alright",category:"Daily Sentences"},
+  {chinese:"不行",pinyin:"bù xíng",english:"No way / Not allowed",category:"Daily Sentences"},
+  {chinese:"我同意",pinyin:"wǒ tóng yì",english:"I agree",category:"Daily Sentences"},
+  {chinese:"我不同意",pinyin:"wǒ bù tóng yì",english:"I disagree",category:"Daily Sentences"},
+  {chinese:"等一下",pinyin:"děng yī xià",english:"Wait a moment",category:"Daily Sentences"},
+  {chinese:"我知道",pinyin:"wǒ zhī dào",english:"I know",category:"Daily Sentences"},
+  {chinese:"我不知道",pinyin:"wǒ bù zhī dào",english:"I don't know",category:"Daily Sentences"},
+  {chinese:"我爱你",pinyin:"wǒ ài nǐ",english:"I love you",category:"Daily Sentences"},
+  {chinese:"我喜欢你",pinyin:"wǒ xǐ huān nǐ",english:"I like you",category:"Daily Sentences"},
+  {chinese:"祝贺你",pinyin:"zhù hè nǐ",english:"Congratulations!",category:"Daily Sentences"},
+  {chinese:"祝你生日快乐",pinyin:"zhù nǐ shēng rì kuài lè",english:"Happy Birthday!",category:"Daily Sentences"},
+  {chinese:"别担心",pinyin:"bié dān xīn",english:"Don't worry",category:"Daily Sentences"},
+  {chinese:"小心",pinyin:"xiǎo xīn",english:"Be careful / Watch out",category:"Daily Sentences"},
+  {chinese:"我在这里",pinyin:"wǒ zài zhè lǐ",english:"I'm here",category:"Daily Sentences"},
+  {chinese:"请再说一遍",pinyin:"qǐng zài shuō yī biàn",english:"Please say that again",category:"Daily Sentences"},
+  {chinese:"说慢一点",pinyin:"shuō màn yī diǎn",english:"Please speak slower",category:"Daily Sentences"},
+  {chinese:"我听不懂",pinyin:"wǒ tīng bù dǒng",english:"I don't understand (spoken)",category:"Daily Sentences"},
+  {chinese:"我迷路了",pinyin:"wǒ mí lù le",english:"I'm lost",category:"Daily Sentences"},
+  {chinese:"我饿了",pinyin:"wǒ è le",english:"I'm hungry",category:"Daily Sentences"},
+  {chinese:"我累了",pinyin:"wǒ lèi le",english:"I'm tired",category:"Daily Sentences"},
+  {chinese:"我生病了",pinyin:"wǒ shēng bìng le",english:"I'm sick",category:"Daily Sentences"},
+  {chinese:"救命！",pinyin:"jiù mìng",english:"Help! (emergency)",category:"Daily Sentences"},
+  {chinese:"你在干什么？",pinyin:"nǐ zài gàn shén me?",english:"What are you doing?",category:"Daily Sentences"},
+  {chinese:"我很好奇",pinyin:"wǒ hěn hǎo qí",english:"I'm curious",category:"Daily Sentences"},
+  {chinese:"什么？",pinyin:"shén me?",english:"What?",category:"Questions"},
+  {chinese:"谁？",pinyin:"shuí?",english:"Who?",category:"Questions"},
+  {chinese:"哪里？",pinyin:"nǎ lǐ?",english:"Where?",category:"Questions"},
+  {chinese:"什么时候？",pinyin:"shén me shí hòu?",english:"When?",category:"Questions"},
+  {chinese:"为什么？",pinyin:"wèi shén me?",english:"Why?",category:"Questions"},
+  {chinese:"怎么？",pinyin:"zěn me?",english:"How?",category:"Questions"},
+  {chinese:"多少钱？",pinyin:"duō shǎo qián?",english:"How much does it cost?",category:"Questions"},
+  {chinese:"几点了？",pinyin:"jǐ diǎn le?",english:"What time is it?",category:"Questions"},
+  {chinese:"今天星期几？",pinyin:"jīn tiān xīng qī jǐ?",english:"What day is today?",category:"Questions"},
+  {chinese:"你叫什么名字？",pinyin:"nǐ jiào shén me míng zi?",english:"What is your name?",category:"Questions"},
+  {chinese:"你从哪里来？",pinyin:"nǐ cóng nǎ lǐ lái?",english:"Where are you from?",category:"Questions"},
+  {chinese:"你住在哪里？",pinyin:"nǐ zhù zài nǎ lǐ?",english:"Where do you live?",category:"Questions"},
+  {chinese:"你会说英文吗？",pinyin:"nǐ huì shuō yīng wén ma?",english:"Do you speak English?",category:"Questions"},
+  {chinese:"你会说中文吗？",pinyin:"nǐ huì shuō zhōng wén ma?",english:"Do you speak Chinese?",category:"Questions"},
+  {chinese:"厕所在哪里？",pinyin:"cè suǒ zài nǎ lǐ?",english:"Where is the restroom?",category:"Questions"},
+  {chinese:"这是什么？",pinyin:"zhè shì shén me?",english:"What is this?",category:"Questions"},
+  {chinese:"有没有...？",pinyin:"yǒu méi yǒu...?",english:"Is there...? / Do you have...?",category:"Questions"},
+  {chinese:"你多大？",pinyin:"nǐ duō dà?",english:"How old are you?",category:"Questions"},
+  {chinese:"我想吃饭",pinyin:"wǒ xiǎng chī fàn",english:"I want to eat",category:"Food & Drink"},
+  {chinese:"我想喝水",pinyin:"wǒ xiǎng hē shuǐ",english:"I want to drink water",category:"Food & Drink"},
+  {chinese:"好吃",pinyin:"hǎo chī",english:"Delicious",category:"Food & Drink"},
+  {chinese:"不好吃",pinyin:"bù hǎo chī",english:"Not delicious / Doesn't taste good",category:"Food & Drink"},
+  {chinese:"我饱了",pinyin:"wǒ bǎo le",english:"I'm full",category:"Food & Drink"},
+  {chinese:"服务员",pinyin:"fú wù yuán",english:"Waiter / Waitress",category:"Food & Drink"},
+  {chinese:"菜单",pinyin:"cài dān",english:"Menu",category:"Food & Drink"},
+  {chinese:"点菜",pinyin:"diǎn cài",english:"Order food",category:"Food & Drink"},
+  {chinese:"买单",pinyin:"mǎi dān",english:"The bill please",category:"Food & Drink"},
+  {chinese:"外卖",pinyin:"wài mài",english:"Takeout / Delivery",category:"Food & Drink"},
+  {chinese:"米饭",pinyin:"mǐ fàn",english:"White rice",category:"Food & Drink"},
+  {chinese:"面条",pinyin:"miàn tiáo",english:"Noodles",category:"Food & Drink"},
+  {chinese:"饺子",pinyin:"jiǎo zi",english:"Dumplings",category:"Food & Drink"},
+  {chinese:"包子",pinyin:"bāo zi",english:"Steamed buns",category:"Food & Drink"},
+  {chinese:"火锅",pinyin:"huǒ guō",english:"Hot pot",category:"Food & Drink"},
+  {chinese:"茶",pinyin:"chá",english:"Tea",category:"Food & Drink"},
+  {chinese:"咖啡",pinyin:"kā fēi",english:"Coffee",category:"Food & Drink"},
+  {chinese:"啤酒",pinyin:"pí jiǔ",english:"Beer",category:"Food & Drink"},
+  {chinese:"辣",pinyin:"là",english:"Spicy",category:"Food & Drink"},
+  {chinese:"甜",pinyin:"tián",english:"Sweet",category:"Food & Drink"},
+  {chinese:"咸",pinyin:"xián",english:"Salty",category:"Food & Drink"},
+  {chinese:"不要辣",pinyin:"bù yào là",english:"No spicy please",category:"Food & Drink"},
+  {chinese:"干杯",pinyin:"gān bēi",english:"Cheers! (toast)",category:"Food & Drink"},
+  {chinese:"我请客",pinyin:"wǒ qǐng kè",english:"My treat / I'll pay",category:"Food & Drink"},
+  {chinese:"西瓜",pinyin:"xī guā",english:"Watermelon",category:"Food & Drink"},
+  {chinese:"米饭",pinyin:"mǐ fàn",english:"Steamed rice",category:"Food & Drink"},
+  {chinese:"一",pinyin:"yī",english:"One",category:"Numbers"},
+  {chinese:"二",pinyin:"èr",english:"Two",category:"Numbers"},
+  {chinese:"三",pinyin:"sān",english:"Three",category:"Numbers"},
+  {chinese:"四",pinyin:"sì",english:"Four",category:"Numbers"},
+  {chinese:"五",pinyin:"wǔ",english:"Five",category:"Numbers"},
+  {chinese:"六",pinyin:"liù",english:"Six",category:"Numbers"},
+  {chinese:"七",pinyin:"qī",english:"Seven",category:"Numbers"},
+  {chinese:"八",pinyin:"bā",english:"Eight",category:"Numbers"},
+  {chinese:"九",pinyin:"jiǔ",english:"Nine",category:"Numbers"},
+  {chinese:"十",pinyin:"shí",english:"Ten",category:"Numbers"},
+  {chinese:"百",pinyin:"bǎi",english:"Hundred",category:"Numbers"},
+  {chinese:"千",pinyin:"qiān",english:"Thousand",category:"Numbers"},
+  {chinese:"万",pinyin:"wàn",english:"Ten thousand",category:"Numbers"},
+  {chinese:"零",pinyin:"líng",english:"Zero",category:"Numbers"},
+  {chinese:"两",pinyin:"liǎng",english:"Two (before measure words)",category:"Numbers"},
+  {chinese:"多少",pinyin:"duō shǎo",english:"How many / How much",category:"Numbers"},
+  {chinese:"第一",pinyin:"dì yī",english:"First",category:"Numbers"},
+  {chinese:"第二",pinyin:"dì èr",english:"Second",category:"Numbers"},
+  {chinese:"一半",pinyin:"yī bàn",english:"Half",category:"Numbers"},
+  {chinese:"今天",pinyin:"jīn tiān",english:"Today",category:"Time & Dates"},
+  {chinese:"明天",pinyin:"míng tiān",english:"Tomorrow",category:"Time & Dates"},
+  {chinese:"昨天",pinyin:"zuó tiān",english:"Yesterday",category:"Time & Dates"},
+  {chinese:"现在",pinyin:"xiàn zài",english:"Now",category:"Time & Dates"},
+  {chinese:"早上",pinyin:"zǎo shang",english:"Morning",category:"Time & Dates"},
+  {chinese:"下午",pinyin:"xià wǔ",english:"Afternoon",category:"Time & Dates"},
+  {chinese:"晚上",pinyin:"wǎn shang",english:"Evening / Night",category:"Time & Dates"},
+  {chinese:"星期一",pinyin:"xīng qī yī",english:"Monday",category:"Time & Dates"},
+  {chinese:"星期五",pinyin:"xīng qī wǔ",english:"Friday",category:"Time & Dates"},
+  {chinese:"周末",pinyin:"zhōu mò",english:"Weekend",category:"Time & Dates"},
+  {chinese:"今年",pinyin:"jīn nián",english:"This year",category:"Time & Dates"},
+  {chinese:"明年",pinyin:"míng nián",english:"Next year",category:"Time & Dates"},
+  {chinese:"时间",pinyin:"shí jiān",english:"Time",category:"Time & Dates"},
+  {chinese:"小时",pinyin:"xiǎo shí",english:"Hour",category:"Time & Dates"},
+  {chinese:"分钟",pinyin:"fēn zhōng",english:"Minute",category:"Time & Dates"},
+  {chinese:"哪里",pinyin:"nǎ lǐ",english:"Where",category:"Places"},
+  {chinese:"这里",pinyin:"zhè lǐ",english:"Here",category:"Places"},
+  {chinese:"那里",pinyin:"nà lǐ",english:"There",category:"Places"},
+  {chinese:"银行",pinyin:"yín háng",english:"Bank",category:"Places"},
+  {chinese:"医院",pinyin:"yī yuàn",english:"Hospital",category:"Places"},
+  {chinese:"学校",pinyin:"xué xiào",english:"School",category:"Places"},
+  {chinese:"超市",pinyin:"chāo shì",english:"Supermarket",category:"Places"},
+  {chinese:"饭店",pinyin:"fàn diàn",english:"Restaurant / Hotel",category:"Places"},
+  {chinese:"酒店",pinyin:"jiǔ diàn",english:"Hotel",category:"Places"},
+  {chinese:"机场",pinyin:"jī chǎng",english:"Airport",category:"Places"},
+  {chinese:"地铁站",pinyin:"dì tiě zhàn",english:"Subway station",category:"Places"},
+  {chinese:"火车站",pinyin:"huǒ chē zhàn",english:"Train station",category:"Places"},
+  {chinese:"公园",pinyin:"gōng yuán",english:"Park",category:"Places"},
+  {chinese:"图书馆",pinyin:"tú shū guǎn",english:"Library",category:"Places"},
+  {chinese:"洗手间",pinyin:"xǐ shǒu jiān",english:"Restroom / Toilet",category:"Places"},
+  {chinese:"警察局",pinyin:"jǐng chá jú",english:"Police station",category:"Places"},
+  {chinese:"左边",pinyin:"zuǒ biān",english:"Left side",category:"Places"},
+  {chinese:"右边",pinyin:"yòu biān",english:"Right side",category:"Places"},
+  {chinese:"前面",pinyin:"qián miàn",english:"In front",category:"Places"},
+  {chinese:"后面",pinyin:"hòu miàn",english:"Behind",category:"Places"},
+  {chinese:"公共汽车",pinyin:"gōng gòng qì chē",english:"Bus",category:"Transport"},
+  {chinese:"地铁",pinyin:"dì tiě",english:"Subway / Metro",category:"Transport"},
+  {chinese:"火车",pinyin:"huǒ chē",english:"Train",category:"Transport"},
+  {chinese:"飞机",pinyin:"fēi jī",english:"Airplane",category:"Transport"},
+  {chinese:"出租车",pinyin:"chū zū chē",english:"Taxi",category:"Transport"},
+  {chinese:"自行车",pinyin:"zì xíng chē",english:"Bicycle",category:"Transport"},
+  {chinese:"去...怎么走？",pinyin:"qù... zěn me zǒu?",english:"How do I get to...?",category:"Transport"},
+  {chinese:"请送我去...",pinyin:"qǐng sòng wǒ qù...",english:"Please take me to...",category:"Transport"},
+  {chinese:"一张票",pinyin:"yī zhāng piào",english:"One ticket",category:"Transport"},
+  {chinese:"下一站",pinyin:"xià yī zhàn",english:"Next stop",category:"Transport"},
+  {chinese:"多少钱？",pinyin:"duō shǎo qián?",english:"How much is it?",category:"Shopping"},
+  {chinese:"太贵了",pinyin:"tài guì le",english:"Too expensive",category:"Shopping"},
+  {chinese:"便宜一点",pinyin:"pián yi yī diǎn",english:"A little cheaper please",category:"Shopping"},
+  {chinese:"我要买这个",pinyin:"wǒ yào mǎi zhè ge",english:"I want to buy this",category:"Shopping"},
+  {chinese:"我只是看看",pinyin:"wǒ zhǐ shì kàn kan",english:"I'm just looking",category:"Shopping"},
+  {chinese:"有没有打折？",pinyin:"yǒu méi yǒu dǎ zhé?",english:"Is there a discount?",category:"Shopping"},
+  {chinese:"信用卡",pinyin:"xìn yòng kǎ",english:"Credit card",category:"Shopping"},
+  {chinese:"现金",pinyin:"xiàn jīn",english:"Cash",category:"Shopping"},
+  {chinese:"收据",pinyin:"shōu jù",english:"Receipt",category:"Shopping"},
+  {chinese:"换货",pinyin:"huàn huò",english:"Exchange goods",category:"Shopping"},
+  {chinese:"退货",pinyin:"tuì huò",english:"Return goods",category:"Shopping"},
+  {chinese:"颜色",pinyin:"yán sè",english:"Color",category:"Shopping"},
+  {chinese:"尺码",pinyin:"chǐ mǎ",english:"Size (clothing/shoes)",category:"Shopping"},
+  {chinese:"家庭",pinyin:"jiā tíng",english:"Family",category:"Family"},
+  {chinese:"爸爸",pinyin:"bà ba",english:"Dad",category:"Family"},
+  {chinese:"妈妈",pinyin:"mā ma",english:"Mom",category:"Family"},
+  {chinese:"父亲",pinyin:"fù qīn",english:"Father (formal)",category:"Family"},
+  {chinese:"母亲",pinyin:"mǔ qīn",english:"Mother (formal)",category:"Family"},
+  {chinese:"哥哥",pinyin:"gē ge",english:"Older brother",category:"Family"},
+  {chinese:"弟弟",pinyin:"dì di",english:"Younger brother",category:"Family"},
+  {chinese:"姐姐",pinyin:"jiě jie",english:"Older sister",category:"Family"},
+  {chinese:"妹妹",pinyin:"mèi mei",english:"Younger sister",category:"Family"},
+  {chinese:"爷爷",pinyin:"yé ye",english:"Grandfather (paternal)",category:"Family"},
+  {chinese:"奶奶",pinyin:"nǎi nai",english:"Grandmother (paternal)",category:"Family"},
+  {chinese:"丈夫",pinyin:"zhàng fū",english:"Husband",category:"Family"},
+  {chinese:"妻子",pinyin:"qī zi",english:"Wife",category:"Family"},
+  {chinese:"儿子",pinyin:"ér zi",english:"Son",category:"Family"},
+  {chinese:"女儿",pinyin:"nǚ ér",english:"Daughter",category:"Family"},
+  {chinese:"朋友",pinyin:"péng yǒu",english:"Friend",category:"Family"},
+  {chinese:"开心",pinyin:"kāi xīn",english:"Happy",category:"Emotions"},
+  {chinese:"难过",pinyin:"nán guò",english:"Sad",category:"Emotions"},
+  {chinese:"生气",pinyin:"shēng qì",english:"Angry",category:"Emotions"},
+  {chinese:"紧张",pinyin:"jǐn zhāng",english:"Nervous",category:"Emotions"},
+  {chinese:"兴奋",pinyin:"xīng fèn",english:"Excited",category:"Emotions"},
+  {chinese:"害怕",pinyin:"hài pà",english:"Afraid / Scared",category:"Emotions"},
+  {chinese:"惊讶",pinyin:"jīng yà",english:"Surprised",category:"Emotions"},
+  {chinese:"失望",pinyin:"shī wàng",english:"Disappointed",category:"Emotions"},
+  {chinese:"满意",pinyin:"mǎn yì",english:"Satisfied",category:"Emotions"},
+  {chinese:"无聊",pinyin:"wú liáo",english:"Bored",category:"Emotions"},
+  {chinese:"想念",pinyin:"xiǎng niàn",english:"Miss (someone)",category:"Emotions"},
+  {chinese:"感动",pinyin:"gǎn dòng",english:"Touched / Moved emotionally",category:"Emotions"},
+  {chinese:"期待",pinyin:"qī dài",english:"Look forward to",category:"Emotions"},
+  {chinese:"红色",pinyin:"hóng sè",english:"Red",category:"Colors"},
+  {chinese:"蓝色",pinyin:"lán sè",english:"Blue",category:"Colors"},
+  {chinese:"黄色",pinyin:"huáng sè",english:"Yellow",category:"Colors"},
+  {chinese:"绿色",pinyin:"lǜ sè",english:"Green",category:"Colors"},
+  {chinese:"黑色",pinyin:"hēi sè",english:"Black",category:"Colors"},
+  {chinese:"白色",pinyin:"bái sè",english:"White",category:"Colors"},
+  {chinese:"橙色",pinyin:"chéng sè",english:"Orange",category:"Colors"},
+  {chinese:"紫色",pinyin:"zǐ sè",english:"Purple",category:"Colors"},
+  {chinese:"粉红色",pinyin:"fěn hóng sè",english:"Pink",category:"Colors"},
+  {chinese:"灰色",pinyin:"huī sè",english:"Gray",category:"Colors"},
+  {chinese:"医生",pinyin:"yī shēng",english:"Doctor",category:"Occupations"},
+  {chinese:"老师",pinyin:"lǎo shī",english:"Teacher",category:"Occupations"},
+  {chinese:"学生",pinyin:"xué shēng",english:"Student",category:"Occupations"},
+  {chinese:"警察",pinyin:"jǐng chá",english:"Police Officer",category:"Occupations"},
+  {chinese:"司机",pinyin:"sī jī",english:"Driver",category:"Occupations"},
+  {chinese:"厨师",pinyin:"chú shī",english:"Chef",category:"Occupations"},
+  {chinese:"律师",pinyin:"lǜ shī",english:"Lawyer",category:"Occupations"},
+  {chinese:"服务员",pinyin:"fú wù yuán",english:"Waiter / Waitress",category:"Occupations"},
+  {chinese:"工程师",pinyin:"gōng chéng shī",english:"Engineer",category:"Occupations"},
+  {chinese:"翻译",pinyin:"fān yì",english:"Translator",category:"Occupations"},
+  {chinese:"足球",pinyin:"zú qiú",english:"Soccer / Football",category:"Sports"},
+  {chinese:"篮球",pinyin:"lán qiú",english:"Basketball",category:"Sports"},
+  {chinese:"游泳",pinyin:"yóu yǒng",english:"Swimming",category:"Sports"},
+  {chinese:"跑步",pinyin:"pǎo bù",english:"Running / Jogging",category:"Sports"},
+  {chinese:"滑雪",pinyin:"huá xuě",english:"Skiing",category:"Sports"},
+  {chinese:"乒乓球",pinyin:"pīng pāng qiú",english:"Table Tennis / Ping Pong",category:"Sports"},
+  {chinese:"羽毛球",pinyin:"yǔ máo qiú",english:"Badminton",category:"Sports"},
+  {chinese:"赢",pinyin:"yíng",english:"To win",category:"Sports"},
+  {chinese:"输",pinyin:"shū",english:"To lose",category:"Sports"},
+  {chinese:"比赛",pinyin:"bǐ sài",english:"Match / Competition",category:"Sports"},
+  {chinese:"冠军",pinyin:"guàn jūn",english:"Champion",category:"Sports"},
+  {chinese:"天气",pinyin:"tiān qì",english:"Weather",category:"Nature"},
+  {chinese:"太阳",pinyin:"tài yáng",english:"Sun",category:"Nature"},
+  {chinese:"雨",pinyin:"yǔ",english:"Rain",category:"Nature"},
+  {chinese:"雪",pinyin:"xuě",english:"Snow",category:"Nature"},
+  {chinese:"风",pinyin:"fēng",english:"Wind",category:"Nature"},
+  {chinese:"热",pinyin:"rè",english:"Hot",category:"Nature"},
+  {chinese:"冷",pinyin:"lěng",english:"Cold",category:"Nature"},
+  {chinese:"春天",pinyin:"chūn tiān",english:"Spring",category:"Nature"},
+  {chinese:"夏天",pinyin:"xià tiān",english:"Summer",category:"Nature"},
+  {chinese:"秋天",pinyin:"qiū tiān",english:"Autumn / Fall",category:"Nature"},
+  {chinese:"冬天",pinyin:"dōng tiān",english:"Winter",category:"Nature"},
+  {chinese:"山",pinyin:"shān",english:"Mountain",category:"Nature"},
+  {chinese:"海",pinyin:"hǎi",english:"Sea / Ocean",category:"Nature"},
+  {chinese:"家",pinyin:"jiā",english:"Home / Family",category:"Home"},
+  {chinese:"房子",pinyin:"fáng zi",english:"House",category:"Home"},
+  {chinese:"客厅",pinyin:"kè tīng",english:"Living room",category:"Home"},
+  {chinese:"卧室",pinyin:"wò shì",english:"Bedroom",category:"Home"},
+  {chinese:"厨房",pinyin:"chú fáng",english:"Kitchen",category:"Home"},
+  {chinese:"床",pinyin:"chuáng",english:"Bed",category:"Home"},
+  {chinese:"椅子",pinyin:"yǐ zi",english:"Chair",category:"Home"},
+  {chinese:"桌子",pinyin:"zhuō zi",english:"Table",category:"Home"},
+  {chinese:"电脑",pinyin:"diàn nǎo",english:"Computer",category:"Home"},
+  {chinese:"手机",pinyin:"shǒu jī",english:"Mobile phone",category:"Home"},
+  {chinese:"电视",pinyin:"diàn shì",english:"TV / Television",category:"Home"},
+  {chinese:"冰箱",pinyin:"bīng xiāng",english:"Refrigerator",category:"Home"},
+  {chinese:"我是加拿大人",pinyin:"wǒ shì jiā ná dà rén",english:"I am Canadian",category:"Useful Phrases"},
+  {chinese:"我在学中文",pinyin:"wǒ zài xué zhōng wén",english:"I am learning Chinese",category:"Useful Phrases"},
+  {chinese:"我只会说一点中文",pinyin:"wǒ zhǐ huì shuō yī diǎn zhōng wén",english:"I only speak a little Chinese",category:"Useful Phrases"},
+  {chinese:"可以帮我吗？",pinyin:"kě yǐ bāng wǒ ma?",english:"Can you help me?",category:"Useful Phrases"},
+  {chinese:"我需要帮助",pinyin:"wǒ xū yào bāng zhù",english:"I need help",category:"Useful Phrases"},
+  {chinese:"太棒了",pinyin:"tài bàng le",english:"Awesome! / Amazing!",category:"Useful Phrases"},
+  {chinese:"真的吗？",pinyin:"zhēn de ma?",english:"Really?",category:"Useful Phrases"},
+  {chinese:"我不要",pinyin:"wǒ bù yào",english:"I don't want",category:"Useful Phrases"},
+  {chinese:"我要",pinyin:"wǒ yào",english:"I want",category:"Useful Phrases"},
+  {chinese:"我能...吗？",pinyin:"wǒ néng... ma?",english:"May I...? / Can I...?",category:"Useful Phrases"},
+  {chinese:"没办法",pinyin:"méi bàn fǎ",english:"There's no way / Can't be helped",category:"Useful Phrases"},
+  {chinese:"随便",pinyin:"suí biàn",english:"Whatever / Up to you",category:"Useful Phrases"},
+  {chinese:"有意思",pinyin:"yǒu yì si",english:"Interesting",category:"Useful Phrases"},
+  {chinese:"太好了",pinyin:"tài hǎo le",english:"Great! / Wonderful!",category:"Useful Phrases"},
+  {chinese:"没什么",pinyin:"méi shén me",english:"It's nothing / Not much",category:"Useful Phrases"},
+  {chinese:"慢走",pinyin:"màn zǒu",english:"Take care (said when someone leaves)",category:"Useful Phrases"},
+  {chinese:"一路平安",pinyin:"yī lù píng ān",english:"Have a safe journey",category:"Useful Phrases"},
+  {chinese:"请坐",pinyin:"qǐng zuò",english:"Please sit down",category:"Useful Phrases"},
+  {chinese:"恭喜发财",pinyin:"gōng xǐ fā cái",english:"May you be prosperous",category:"Useful Phrases"},
+  {chinese:"我想订房",pinyin:"wǒ xiǎng dìng fáng",english:"I would like to book a room",category:"Travel"},
+  {chinese:"单人房",pinyin:"dān rén fáng",english:"Single room",category:"Travel"},
+  {chinese:"双人房",pinyin:"shuāng rén fáng",english:"Double room",category:"Travel"},
+  {chinese:"有空房间吗？",pinyin:"yǒu kòng fáng jiān ma?",english:"Are there any rooms available?",category:"Travel"},
+  {chinese:"住一晚多少钱？",pinyin:"zhù yī wǎn duō shǎo qián?",english:"How much for one night?",category:"Travel"},
+  {chinese:"我要登记入住",pinyin:"wǒ yào dēng jì rù zhù",english:"I want to check in",category:"Travel"},
+  {chinese:"我要退房",pinyin:"wǒ yào tuì fáng",english:"I want to check out",category:"Travel"},
+  {chinese:"含早餐吗？",pinyin:"hán zǎo cān ma?",english:"Is breakfast included?",category:"Travel"},
+  {chinese:"行李寄存",pinyin:"xíng lǐ jì cún",english:"Luggage storage",category:"Travel"},
+  {chinese:"大使馆",pinyin:"dà shǐ guǎn",english:"Embassy",category:"Travel"},
+  {chinese:"签证",pinyin:"qiān zhèng",english:"Visa",category:"Travel"},
+  {chinese:"护照",pinyin:"hù zhào",english:"Passport",category:"Travel"},
+  {chinese:"海关",pinyin:"hǎi guān",english:"Customs",category:"Travel"},
+  {chinese:"直飞",pinyin:"zhí fēi",english:"Direct flight",category:"Travel"},
+  {chinese:"转机",pinyin:"zhuǎn jī",english:"Transfer flight",category:"Travel"},
+  {chinese:"登机口",pinyin:"dēng jī kǒu",english:"Boarding gate",category:"Travel"},
+  {chinese:"延误",pinyin:"yán wù",english:"Delayed",category:"Travel"},
+  {chinese:"取消",pinyin:"qǔ xiāo",english:"Cancelled",category:"Travel"},
+  {chinese:"风景",pinyin:"fēng jǐng",english:"Scenery / Landscape",category:"Travel"},
+  {chinese:"导游",pinyin:"dǎo yóu",english:"Tour guide",category:"Travel"},
+  {chinese:"会议",pinyin:"huì yì",english:"Meeting / Conference",category:"Business"},
+  {chinese:"开会",pinyin:"kāi huì",english:"To have a meeting",category:"Business"},
+  {chinese:"合同",pinyin:"hé tong",english:"Contract",category:"Business"},
+  {chinese:"签字",pinyin:"qiān zì",english:"To sign",category:"Business"},
+  {chinese:"名片",pinyin:"míng piàn",english:"Business card",category:"Business"},
+  {chinese:"合作",pinyin:"hé zuò",english:"Cooperation / Collaboration",category:"Business"},
+  {chinese:"谈判",pinyin:"tán pàn",english:"Negotiation",category:"Business"},
+  {chinese:"出差",pinyin:"chū chāi",english:"Business trip",category:"Business"},
+  {chinese:"老板",pinyin:"lǎo bǎn",english:"Boss",category:"Business"},
+  {chinese:"同事",pinyin:"tóng shì",english:"Colleague",category:"Business"},
+  {chinese:"客户",pinyin:"kè hù",english:"Client / Customer",category:"Business"},
+  {chinese:"市场",pinyin:"shì chǎng",english:"Market",category:"Business"},
+  {chinese:"竞争",pinyin:"jìng zhēng",english:"Competition",category:"Business"},
+  {chinese:"投资",pinyin:"tóu zī",english:"Investment",category:"Business"},
+  {chinese:"利润",pinyin:"lì rùn",english:"Profit",category:"Business"},
+  {chinese:"成本",pinyin:"chéng běn",english:"Cost",category:"Business"},
+  {chinese:"工资",pinyin:"gōng zī",english:"Salary",category:"Business"},
+  {chinese:"加班",pinyin:"jiā bān",english:"Work overtime",category:"Business"},
+  {chinese:"简历",pinyin:"jiǎn lì",english:"Resume / CV",category:"Business"},
+  {chinese:"面试",pinyin:"miàn shì",english:"Interview",category:"Business"},
+  {chinese:"摄影",pinyin:"shè yǐng",english:"Photography",category:"Hobbies"},
+  {chinese:"画画",pinyin:"huà huà",english:"Painting / Drawing",category:"Hobbies"},
+  {chinese:"打游戏",pinyin:"dǎ yóu xì",english:"Play video games",category:"Hobbies"},
+  {chinese:"听音乐",pinyin:"tīng yīn yuè",english:"Listen to music",category:"Hobbies"},
+  {chinese:"看电影",pinyin:"kàn diàn yǐng",english:"Watch movies",category:"Hobbies"},
+  {chinese:"读书",pinyin:"dú shū",english:"Reading books",category:"Hobbies"},
+  {chinese:"旅游",pinyin:"lǚ yóu",english:"Traveling",category:"Hobbies"},
+  {chinese:"跳舞",pinyin:"tiào wǔ",english:"Dancing",category:"Hobbies"},
+  {chinese:"唱歌",pinyin:"chàng gē",english:"Singing",category:"Hobbies"},
+  {chinese:"弹钢琴",pinyin:"tán gāng qín",english:"Play the piano",category:"Hobbies"},
+  {chinese:"弹吉他",pinyin:"tán jí tā",english:"Play the guitar",category:"Hobbies"},
+  {chinese:"烹饪",pinyin:"pēng rèn",english:"Cooking",category:"Hobbies"},
+  {chinese:"园艺",pinyin:"yuán yì",english:"Gardening",category:"Hobbies"},
+  {chinese:"收集",pinyin:"shōu jí",english:"Collecting",category:"Hobbies"},
+  {chinese:"运动",pinyin:"yùn dòng",english:"Sports",category:"Hobbies"},
+  {chinese:"瑜伽",pinyin:"yú jiā",english:"Yoga",category:"Hobbies"},
+  {chinese:"冥想",pinyin:"míng xiǎng",english:"Meditation",category:"Hobbies"},
+  {chinese:"写作",pinyin:"xiě zuò",english:"Writing",category:"Hobbies"},
+  {chinese:"钓鱼",pinyin:"diào yú",english:"Fishing",category:"Hobbies"},
+  {chinese:"爬山",pinyin:"pá shān",english:"Hiking / Mountain climbing",category:"Hobbies"}
+];
+
+let deck = [...ALL_CARDS];
+let current = 0;
+let scores = {};
+let pinyinHidden = false;
+
+function changeCategory() {
+  const cat = document.getElementById('categorySelect').value;
+  deck = cat === 'all' ? [...ALL_CARDS] : ALL_CARDS.filter(c => c.category === cat);
+  current = 0;
+  unflip();
+  updateCard();
+  updateProgress();
+}
+
+function shuffleCards() {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  current = 0;
+  unflip();
+  updateCard();
+}
+
+function updateCard() {
+  if (!deck.length) return;
+  const c = deck[current];
+  document.getElementById('frontChinese').textContent = c.chinese;
+  document.getElementById('frontPinyin').textContent = c.pinyin;
+  document.getElementById('frontCategory').textContent = c.category;
+  document.getElementById('backEnglish').textContent = c.english;
+  document.getElementById('backExample').textContent = '';
+  document.getElementById('cardCounter').textContent = (current+1) + ' / ' + deck.length;
+  updateProgress();
+}
+
+function flipCard() {
+  document.getElementById('card').classList.toggle('flipped');
+}
+
+function unflip() {
+  document.getElementById('card').classList.remove('flipped');
+}
+
+function nextCard() {
+  current = (current + 1) % deck.length;
+  unflip();
+  setTimeout(updateCard, 100);
+}
+
+function prevCard() {
+  current = (current - 1 + deck.length) % deck.length;
+  unflip();
+  setTimeout(updateCard, 100);
+}
+
+function getKey() {
+  if (!deck[current]) return '';
+  return deck[current].chinese;
+}
+
+function markKnew() {
+  scores[getKey()] = 'knew';
+  document.getElementById('knewCount').textContent = Object.values(scores).filter(v=>v==='knew').length;
+  updateProgress(); nextCard();
+}
+
+function markStudy() {
+  scores[getKey()] = 'study';
+  document.getElementById('studyCount').textContent = Object.values(scores).filter(v=>v==='study').length;
+  updateProgress(); nextCard();
+}
+
+function markUnknown() {
+  scores[getKey()] = 'unknown';
+  document.getElementById('unknownCount').textContent = Object.values(scores).filter(v=>v==='unknown').length;
+  updateProgress(); nextCard();
+}
+
+function updateProgress() {
+  const scored = deck.filter(c => scores[c.chinese]).length;
+  const pct = deck.length ? (scored / deck.length * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = scored + ' of ' + deck.length + ' reviewed';
+}
+
+function resetProgress() {
+  scores = {};
+  document.getElementById('knewCount').textContent = 0;
+  document.getElementById('studyCount').textContent = 0;
+  document.getElementById('unknownCount').textContent = 0;
+  current = 0;
+  unflip();
+  updateCard();
+  updateProgress();
+}
+
+function togglePinyin() {
+  pinyinHidden = !pinyinHidden;
+  document.getElementById('scene').classList.toggle('pinyin-hidden', pinyinHidden);
+  document.getElementById('pinyinBtn').textContent = pinyinHidden ? '👁 Show Pinyin' : '👁 Hide Pinyin';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') nextCard();
+  else if (e.key === 'ArrowLeft') prevCard();
+  else if (e.key === ' ') { e.preventDefault(); flipCard(); }
+  else if (e.key === '1') markKnew();
+  else if (e.key === '2') markStudy();
+  else if (e.key === '3') markUnknown();
+});
+
+updateCard();
+</script>
+</body>
+</html>'''
+
+# Write the consolidated content to the HTML file
+with open('chinese_flashcards.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+
+# Calculate phrase count and print status
+phrase_count = len(re.findall(r'chinese:"', html_content))
+print(f"Total phrase count in consolidated file: {phrase_count}")
+print("File 'chinese_flashcards.html' has been updated with Travel, Business, and Hobbies batches.")
